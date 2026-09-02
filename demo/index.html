@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>agent-crud-ui demo</title>
+    <meta http-equiv="Cache-Control" content="no-cache" />
+    <link rel="stylesheet" href="./styles.css?v=2" />
+  </head>
+  <body>
+    <div class="app">
+      <div class="shell">
+        <aside class="chat" aria-label="Чат">
+          <div class="messages" id="messages"></div>
+
+          <form class="composer" id="composer">
+            <input
+              id="input"
+              type="text"
+              autocomplete="off"
+              placeholder="Спросите что-нибудь..."
+            />
+            <div class="composer-bar">
+              <button type="button" class="agent-pill" disabled>Агент</button>
+              <button type="submit" class="send" aria-label="Отправить">↑</button>
+            </div>
+          </form>
+        </aside>
+
+        <main class="workspace" id="workspace" aria-label="Область просмотра">
+          <div class="panel" id="panel" hidden>
+            <div class="panel-inner" id="panelBody"></div>
+            <button
+              type="button"
+              class="panel-close"
+              id="panelClose"
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js?v=2"></script>
+  </body>
+</html>
