@@ -206,6 +206,54 @@ body,
   padding-right: 12px !important;
 }
 
+.win-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.win-table-sort-label {
+  font-size: var(--font-size-2);
+  font-weight: 500;
+  line-height: var(--line-height-2);
+  white-space: nowrap;
+}
+
+.win-table-sort-marker {
+  flex: 0 0 12px;
+  width: 12px;
+  min-width: 12px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--gray-9);
+  opacity: 0;
+  visibility: hidden;
+}
+
+.win-table-sort-marker.is-active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.win-table-sort:hover {
+  opacity: 0.85;
+}
+
+.win-table-sort:hover .win-table-sort-marker:not(.is-active) {
+  opacity: 0.35;
+  visibility: visible;
+}
+
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: 1fr;
