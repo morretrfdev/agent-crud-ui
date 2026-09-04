@@ -4,9 +4,11 @@ import { Canvas } from "./components/Canvas.jsx";
 import {
   MAX_WINDOWS,
   WINDOW_W,
+  createEntity,
   fetchSchema,
   getSessionId,
   postChat,
+  updateEntity,
 } from "./lib/api.js";
 import { FALLBACK_SCHEMAS, viewKey } from "./lib/viewUtils.js";
 
@@ -118,6 +120,56 @@ export default function App() {
     );
   }, []);
 
+  const handleFormSubmit = useCallback(async (windowId, { mode, entity, id, payload }) => {
+    const saved =
+      mode === "create"
+        ? await createEntity(entity, payload)
+        : await updateEntity(entity, id, payload);
+
+    const nextView = {
+      type: "form",
+      entity,
+      source: {
+        slot: mode === "create" ? "get" : "update",
+        entity,
+      },
+      data: saved,
+    };
+    const key = viewKey(nextView);
+
+    zRef.current += 1;
+    const zIndex = zRef.current;
+
+    setWindows((prev) => {
+      const conflict = prev.find((w) => w.id !== windowId && w.viewKey === key);
+      if (conflict) {
+        return prev
+          .filter((w) => w.id !== windowId)
+          .map((w) =>
+            w.id === conflict.id ? { ...w, view: nextView, zIndex } : w
+          );
+      }
+      return prev.map((w) =>
+        w.id === windowId
+          ? { ...w, viewKey: key, view: nextView, zIndex }
+          : w
+      );
+    });
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextMsgId(),
+        role: "agent",
+        text:
+          mode === "create"
+            ? `Создано: ${entity} #${saved.id}`
+            : `Сохранено: ${entity} #${saved.id}`,
+        view: nextView,
+      },
+    ]);
+  }, []);
+
   async function sendMessage(text) {
     setMessages((prev) => [
       ...prev,
@@ -176,6 +228,7 @@ export default function App() {
           onClose={closeWindow}
           onFocus={focusWindow}
           onMove={moveWindow}
+          onFormSubmit={handleFormSubmit}
         />
       </div>
     </div>

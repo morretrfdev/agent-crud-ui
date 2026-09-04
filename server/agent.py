@@ -385,16 +385,58 @@ def run_tool(name: str, args: dict[str, Any]) -> Any:
 
 
 def _extract_json(text: str) -> dict[str, Any]:
-    text = text.strip()
+    text = (text or "").strip()
     if text.startswith("```"):
         text = text.strip("`")
         if text.startswith("json"):
             text = text[4:].strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start < 0 or end < 0:
-        raise ValueError("No JSON object in model response")
-    return json.loads(text[start : end + 1])
+
+    decoder = json.JSONDecoder()
+    candidates: list[dict[str, Any]] = []
+    idx = 0
+    while idx < len(text):
+        start = text.find("{", idx)
+        if start < 0:
+            break
+        try:
+            obj, end = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            idx = start + 1
+            continue
+        if isinstance(obj, dict):
+            candidates.append(obj)
+            if "view" in obj:
+                return obj
+        idx = max(end, start + 1)
+
+    for obj in reversed(candidates):
+        if obj:
+            return obj
+    if candidates:
+        return candidates[-1]
+    raise ValueError("No JSON object in model response")
+
+
+def _parse_tool_args(raw: str | None) -> dict[str, Any]:
+    text = (raw or "{}").strip() or "{}"
+    decoder = json.JSONDecoder()
+    idx = 0
+    fallback: dict[str, Any] = {}
+    while idx < len(text):
+        start = text.find("{", idx)
+        if start < 0:
+            break
+        try:
+            obj, end = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            idx = start + 1
+            continue
+        if isinstance(obj, dict):
+            if obj:
+                return obj
+            fallback = obj
+        idx = max(end, start + 1)
+    return fallback
 
 
 def require_api_key() -> str:
@@ -460,7 +502,7 @@ def run_chat(session_id: str, message: str) -> dict[str, Any]:
                 }
             )
             for tc in tool_calls:
-                args = json.loads(tc.function.arguments or "{}")
+                args = _parse_tool_args(tc.function.arguments)
                 result = run_tool(tc.function.name, args)
                 messages.append(
                     {
