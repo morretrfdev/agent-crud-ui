@@ -1,18 +1,21 @@
-# Demo UI + live agent
+## Demo UI (React + Vite + Radix Themes)
 
-## Запуск всего стека
+## Dev
 
 ```bash
-cd server
-source .venv/bin/activate
-# .env с OPENAI_API_KEY (DeepSeek) уже нужен
-uvicorn app:app --reload --host 127.0.0.1 --port 8000
+# терминал 1 — API
+cd server && source .venv/bin/activate && uvicorn app:app --reload --host 127.0.0.1 --port 8000
+
+# терминал 2 — React
+cd demo && npm install && npm run dev
 ```
 
-Открыть: **http://127.0.0.1:8000/**
+Открыть: http://127.0.0.1:5173/ (прокси `/api` → :8000)
 
-Чат ходит в `POST /api/chat`.
+## Production build
 
-Примеры в чате:
-- Покажи список организаций
-- Открой организацию №1
+```bash
+cd demo && npm install && npm run build
+```
+
+Статика попадает в `demo/dist`. FastAPI отдаёт её с http://127.0.0.1:8000/

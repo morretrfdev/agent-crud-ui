@@ -3,37 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>agent-crud-ui demo</title>
     <meta http-equiv="Cache-Control" content="no-cache" />
-    <link rel="stylesheet" href="./styles.css?v=6" />
+    <title>agent-crud-ui demo</title>
   </head>
   <body>
-    <div class="app">
-      <div class="shell">
-        <aside class="chat" aria-label="Чат">
-          <div class="messages" id="messages"></div>
-
-          <form class="composer" id="composer">
-            <input
-              id="input"
-              type="text"
-              autocomplete="off"
-              placeholder="Спросите что-нибудь..."
-            />
-            <div class="composer-bar">
-              <button type="button" class="agent-pill" disabled>Агент</button>
-              <button type="submit" class="send" aria-label="Отправить">↑</button>
-            </div>
-          </form>
-        </aside>
-
-        <main class="workspace" id="workspace" aria-label="Холст результатов">
-          <div class="canvas-hint" id="canvasHint">Результаты появятся здесь</div>
-          <div class="canvas" id="canvas"></div>
-        </main>
-      </div>
-    </div>
-
-    <script type="module" src="./app.js?v=6"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
