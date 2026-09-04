@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>agent-crud-ui demo</title>
     <meta http-equiv="Cache-Control" content="no-cache" />
-    <link rel="stylesheet" href="./styles.css?v=3" />
+    <link rel="stylesheet" href="./styles.css?v=6" />
   </head>
   <body>
     <div class="app">
@@ -27,22 +27,13 @@
           </form>
         </aside>
 
-        <main class="workspace" id="workspace" aria-label="Область просмотра">
-          <div class="panel" id="panel" hidden>
-            <div class="panel-inner" id="panelBody"></div>
-            <button
-              type="button"
-              class="panel-close"
-              id="panelClose"
-              aria-label="Закрыть"
-            >
-              ×
-            </button>
-          </div>
+        <main class="workspace" id="workspace" aria-label="Холст результатов">
+          <div class="canvas-hint" id="canvasHint">Результаты появятся здесь</div>
+          <div class="canvas" id="canvas"></div>
         </main>
       </div>
     </div>
 
-    <script type="module" src="./app.js?v=3"></script>
+    <script type="module" src="./app.js?v=6"></script>
   </body>
 </html>
