@@ -343,11 +343,23 @@ def chat(body: ChatRequest) -> dict[str, Any]:
 
 
 DEMO_DIR = ROOT.parent / "demo"
+DIST_DIR = DEMO_DIR / "dist"
 
 
 @app.get("/")
 def demo_index() -> FileResponse:
-    return FileResponse(DEMO_DIR / "index.html")
+    index = DIST_DIR / "index.html"
+    if not index.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend not built. Run: cd demo && npm install && npm run build",
+        )
+    return FileResponse(index)
 
 
-app.mount("/", StaticFiles(directory=str(DEMO_DIR), html=False), name="demo")
+if DIST_DIR.exists():
+    app.mount(
+        "/",
+        StaticFiles(directory=str(DIST_DIR), html=False),
+        name="demo",
+    )

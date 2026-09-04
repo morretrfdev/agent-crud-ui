@@ -7,3 +7,4 @@
 server/.env
 server/data/*.db
 server/data/*.db-*
+demo/node_modules

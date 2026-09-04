@@ -18,6 +18,9 @@ cp .env.example .env   # впиши OPENAI_API_KEY
 uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
+Frontend (React): `cd demo && npm install && npm run build` — статика в `demo/dist`, отдаётся с `:8000`.  
+Dev UI: `cd demo && npm run dev` → http://127.0.0.1:5173/
+
 ### CRUD
 
 | Method | Path |
