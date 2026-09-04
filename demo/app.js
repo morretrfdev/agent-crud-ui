@@ -128,7 +128,7 @@ function addAgentWidget(view, message) {
     btn.type = "button";
     btn.className = "widget-btn";
     btn.textContent =
-      view.type === "table" ? "Открыть таблицу" : "Посмотреть данные";
+      view.type === "table" ? "Показать таблицу снова" : "Показать данные снова";
     btn.addEventListener("click", () => openPanel(view));
 
     widget.append(label, name, btn);
@@ -145,7 +145,12 @@ function addAgentWidget(view, message) {
   wrap.appendChild(bubble);
   messagesEl.appendChild(wrap);
   scrollChatToBottom();
-  closePanel();
+
+  if (view && (view.type === "table" || view.type === "form")) {
+    openPanel(view);
+  } else {
+    closePanel();
+  }
 }
 
 function openPanel(view) {
