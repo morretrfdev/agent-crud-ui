@@ -3,12 +3,20 @@ export const FALLBACK_SCHEMAS = {
     key: "organizations",
     title: "Организации",
     fields: [
-      { key: "name", label: "Организация", type: "text" },
-      { key: "id", label: "ID", type: "integer", readOnly: true },
+      { key: "name", label: "Организация", type: "text", required: true },
+      {
+        key: "id",
+        label: "ID",
+        type: "integer",
+        required: true,
+        readOnly: true,
+        source: "backend",
+      },
       {
         key: "status",
         label: "Статус",
         type: "select",
+        required: true,
         options: ["Одобрено", "Возвращено", "На рассмотрении", "Черновик"],
       },
     ],
@@ -17,9 +25,21 @@ export const FALLBACK_SCHEMAS = {
     key: "users",
     title: "Пользователи",
     fields: [
-      { key: "fullName", label: "ФИО", type: "text" },
-      { key: "registeredAt", label: "Дата регистрации", type: "date" },
-      { key: "id", label: "ID", type: "integer", readOnly: true },
+      { key: "fullName", label: "ФИО", type: "text", required: true },
+      {
+        key: "registeredAt",
+        label: "Дата регистрации",
+        type: "date",
+        required: true,
+      },
+      {
+        key: "id",
+        label: "ID",
+        type: "integer",
+        required: true,
+        readOnly: true,
+        source: "backend",
+      },
     ],
   },
 };

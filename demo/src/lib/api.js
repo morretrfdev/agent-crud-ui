@@ -33,3 +33,40 @@ export async function postChat(sessionId, message) {
   }
   return data;
 }
+
+function entityPath(entity) {
+  if (entity === "users") return "/api/users";
+  if (entity === "organizations") return "/api/organizations";
+  throw new Error(`Unknown entity: ${entity}`);
+}
+
+async function parseApiError(res) {
+  let detail = res.status;
+  try {
+    const data = await res.json();
+    detail = data.detail || detail;
+  } catch {
+    /* ignore */
+  }
+  return typeof detail === "string" ? detail : JSON.stringify(detail);
+}
+
+export async function createEntity(entity, payload) {
+  const res = await fetch(`${API_BASE}${entityPath(entity)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return res.json();
+}
+
+export async function updateEntity(entity, id, payload) {
+  const res = await fetch(`${API_BASE}${entityPath(entity)}/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return res.json();
+}

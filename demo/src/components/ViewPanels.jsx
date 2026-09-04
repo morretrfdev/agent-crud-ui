@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Badge, Select, Table, Text, TextField } from "@radix-ui/themes";
+import { useEffect, useMemo, useState } from "react";
+import { Badge, Button, Flex, Select, Table, Text, TextField } from "@radix-ui/themes";
 import { schemaFor, statusColor } from "../lib/viewUtils.js";
 
 function compareValues(a, b, field) {
@@ -19,6 +19,50 @@ function compareValues(a, b, field) {
   }
 
   return String(av).localeCompare(String(bv), "ru", { sensitivity: "base" });
+}
+
+function isEditableField(field) {
+  if (!field) return false;
+  if (field.readOnly) return false;
+  if (field.source === "backend") return false;
+  return true;
+}
+
+function buildInitialValues(fields, data) {
+  const row = data || {};
+  const values = {};
+  for (const field of fields) {
+    const raw = row[field.key];
+    values[field.key] = raw == null ? "" : String(raw);
+  }
+  return values;
+}
+
+function collectPayload(fields, values) {
+  const payload = {};
+  for (const field of fields) {
+    if (!isEditableField(field)) continue;
+    const raw = values[field.key];
+    if (field.type === "integer") {
+      if (raw === "" || raw == null) continue;
+      payload[field.key] = Number(raw);
+    } else {
+      payload[field.key] = typeof raw === "string" ? raw.trim() : raw;
+    }
+  }
+  return payload;
+}
+
+function missingRequired(fields, values) {
+  const missing = [];
+  for (const field of fields) {
+    if (!isEditableField(field) || !field.required) continue;
+    const raw = values[field.key];
+    const empty =
+      raw == null || (typeof raw === "string" && raw.trim() === "");
+    if (empty) missing.push(field.label || field.key);
+  }
+  return missing;
 }
 
 export function ViewTable({ view, schemas }) {
@@ -99,39 +143,124 @@ export function ViewTable({ view, schemas }) {
   );
 }
 
-export function ViewForm({ view, schemas }) {
+export function ViewForm({ view, schemas, onSubmit }) {
   const schema = schemaFor(schemas, view);
-  const row = view.data || {};
   const fields = schema.fields || [];
+  const dataKey = JSON.stringify(view?.data ?? null);
+  const recordId = view?.data?.id;
+  const isCreate = recordId == null;
+
+  const [values, setValues] = useState(() =>
+    buildInitialValues(fields, view?.data)
+  );
+  const [errors, setErrors] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const baseline = buildInitialValues(fields, view?.data);
+  const dirty = fields.some((field) => {
+    if (!isEditableField(field)) return false;
+    return (values[field.key] ?? "") !== (baseline[field.key] ?? "");
+  });
+
+  useEffect(() => {
+    setValues(buildInitialValues(fields, view?.data));
+    setErrors([]);
+    setStatus("");
+  }, [dataKey, view?.entity]);
+
+  function setField(key, value) {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    setStatus("");
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!onSubmit || busy) return;
+    if (!isCreate && !dirty) return;
+
+    const missing = missingRequired(fields, values);
+    if (missing.length) {
+      setErrors(missing);
+      setStatus("");
+      return;
+    }
+    setErrors([]);
+    setBusy(true);
+    setStatus("");
+    try {
+      const payload = collectPayload(fields, values);
+      await onSubmit({
+        mode: isCreate ? "create" : "update",
+        entity: view.entity,
+        id: recordId,
+        payload,
+        view,
+      });
+      setStatus(isCreate ? "Создано" : "Сохранено");
+    } catch (err) {
+      setStatus(`Ошибка: ${err.message || err}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const submitDisabled = busy || (!isCreate && !dirty);
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      {fields.map((field) => (
-        <label key={field.key} style={{ display: "grid", gap: 6 }}>
-          <Text size="1" color="gray" weight="medium">
-            {field.label || field.key}
-          </Text>
-          {field.type === "select" ? (
-            <Select.Root value={row[field.key] ?? ""} disabled>
-              <Select.Trigger />
-              <Select.Content>
-                {(field.options || []).map((opt) => (
-                  <Select.Item key={opt} value={opt}>
-                    {opt}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
-          ) : (
-            <TextField.Root
-              type={field.type === "date" ? "date" : "text"}
-              value={row[field.key] ?? ""}
-              readOnly={Boolean(field.readOnly)}
-              onChange={() => {}}
-            />
-          )}
-        </label>
-      ))}
-    </div>
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
+      {fields.map((field) => {
+        const editable = isEditableField(field);
+        return (
+          <label key={field.key} style={{ display: "grid", gap: 6 }}>
+            <Text size="1" color="gray" weight="medium">
+              {field.label || field.key}
+              {editable && field.required ? " *" : ""}
+            </Text>
+            {field.type === "select" ? (
+              <Select.Root
+                value={values[field.key] || undefined}
+                disabled={!editable || busy}
+                onValueChange={(v) => setField(field.key, v)}
+              >
+                <Select.Trigger placeholder="Выберите…" />
+                <Select.Content>
+                  {(field.options || []).map((opt) => (
+                    <Select.Item key={opt} value={opt}>
+                      {opt}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
+            ) : (
+              <TextField.Root
+                type={field.type === "date" ? "date" : "text"}
+                value={values[field.key] ?? ""}
+                readOnly={!editable}
+                disabled={busy}
+                onChange={(ev) => setField(field.key, ev.target.value)}
+              />
+            )}
+          </label>
+        );
+      })}
+
+      {errors.length > 0 ? (
+        <Text size="1" color="red">
+          Заполните: {errors.join(", ")}
+        </Text>
+      ) : null}
+      {status ? (
+        <Text size="1" color={status.startsWith("Ошибка") ? "red" : "green"}>
+          {status}
+        </Text>
+      ) : null}
+
+      <Flex justify="end">
+        <Button type="submit" disabled={submitDisabled}>
+          {busy ? "…" : isCreate ? "Создать" : "Сохранить"}
+        </Button>
+      </Flex>
+    </form>
   );
 }
