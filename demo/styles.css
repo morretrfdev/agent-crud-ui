@@ -173,47 +173,97 @@ select {
 .workspace {
   position: relative;
   min-height: 0;
-  background: var(--bg);
-  display: grid;
-  place-items: center;
-  padding: 32px;
+  overflow: hidden;
+  background:
+    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--bg);
 }
 
-.panel[hidden] {
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.canvas-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.canvas-hint[hidden] {
   display: none;
 }
 
-.panel {
-  position: relative;
-  width: min(640px, 100%);
+.win {
+  position: absolute;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.panel-inner {
-  width: 100%;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 20px;
-  max-height: calc(100vh - 160px);
-  overflow: auto;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+  min-width: 280px;
+  max-width: min(560px, calc(100% - 16px));
+  max-height: calc(100% - 24px);
 }
 
-.panel-close {
-  width: 36px;
-  height: 36px;
+.win.is-dragging {
+  opacity: 0.96;
+  user-select: none;
+}
+
+.win-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+  border-radius: 14px 14px 0 0;
+  background: #fafafa;
+}
+
+.win.is-dragging .win-header {
+  cursor: grabbing;
+}
+
+.win-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.win-close {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: #fff;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
+  flex-shrink: 0;
 }
 
-.panel-inner h2 {
+.win-body {
+  padding: 16px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.win-body h2 {
   margin: 0 0 16px;
   font-size: 18px;
   font-weight: 600;

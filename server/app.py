@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -20,11 +21,12 @@ from agent import run_chat  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "app.db"
-SCHEMA_PATH = ROOT / "entities" / "organizations.json"
+ENTITIES_DIR = ROOT / "entities"
 
 ALLOWED_STATUSES = {"Одобрено", "Возвращено", "На рассмотрении", "Черновик"}
+ENTITY_KEYS = {"organizations", "users"}
 
-app = FastAPI(title="agent-crud-ui demo API", version="0.2.0")
+app = FastAPI(title="agent-crud-ui demo API", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -44,8 +46,16 @@ def db() -> sqlite3.Connection:
     return conn
 
 
-def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+def org_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return {"id": row["id"], "name": row["name"], "status": row["status"]}
+
+
+def user_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "fullName": row["full_name"],
+        "registeredAt": row["registered_at"],
+    }
 
 
 class CreateOrg(BaseModel):
@@ -58,6 +68,16 @@ class UpdateOrg(BaseModel):
     status: str | None = None
 
 
+class CreateUser(BaseModel):
+    fullName: str = Field(min_length=1)
+    registeredAt: str = Field(min_length=1)
+
+
+class UpdateUser(BaseModel):
+    fullName: str | None = None
+    registeredAt: str | None = None
+
+
 def validate_status(status: str) -> None:
     if status not in ALLOWED_STATUSES:
         raise HTTPException(
@@ -66,16 +86,35 @@ def validate_status(status: str) -> None:
         )
 
 
+def validate_date(value: str) -> None:
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise HTTPException(
+            status_code=400,
+            detail="registeredAt must be YYYY-MM-DD",
+        )
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/entities/organizations/schema")
-def org_schema() -> dict[str, Any]:
-    if not SCHEMA_PATH.exists():
+@app.get("/api/entities")
+def list_entities() -> list[dict[str, str]]:
+    return [
+        {"key": "organizations", "title": "Организации"},
+        {"key": "users", "title": "Пользователи"},
+    ]
+
+
+@app.get("/api/entities/{entity_key}/schema")
+def entity_schema(entity_key: str) -> dict[str, Any]:
+    if entity_key not in ENTITY_KEYS:
+        raise HTTPException(status_code=404, detail="Unknown entity")
+    path = ENTITIES_DIR / f"{entity_key}.json"
+    if not path.exists():
         raise HTTPException(status_code=404, detail="Schema not found")
-    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @app.get("/api/organizations")
@@ -92,7 +131,7 @@ def list_orgs(status: str | None = None) -> list[dict[str, Any]]:
             rows = conn.execute(
                 "SELECT id, name, status FROM organizations ORDER BY id"
             ).fetchall()
-        return [row_to_dict(r) for r in rows]
+        return [org_to_dict(r) for r in rows]
     finally:
         conn.close()
 
@@ -107,7 +146,7 @@ def get_org(org_id: int) -> dict[str, Any]:
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Not found")
-        return row_to_dict(row)
+        return org_to_dict(row)
     finally:
         conn.close()
 
@@ -127,7 +166,7 @@ def create_org(body: CreateOrg) -> dict[str, Any]:
             "SELECT id, name, status FROM organizations WHERE id = ?",
             (org_id,),
         ).fetchone()
-        return row_to_dict(row)
+        return org_to_dict(row)
     finally:
         conn.close()
 
@@ -162,7 +201,7 @@ def update_org(org_id: int, body: UpdateOrg) -> dict[str, Any]:
             "SELECT id, name, status FROM organizations WHERE id = ?",
             (org_id,),
         ).fetchone()
-        return row_to_dict(updated)
+        return org_to_dict(updated)
     finally:
         conn.close()
 
@@ -180,6 +219,110 @@ def delete_org(org_id: int) -> dict[str, Any]:
         conn.execute("DELETE FROM organizations WHERE id = ?", (org_id,))
         conn.commit()
         return {"deleted": True, "id": org_id}
+    finally:
+        conn.close()
+
+
+@app.get("/api/users")
+def list_users() -> list[dict[str, Any]]:
+    conn = db()
+    try:
+        rows = conn.execute(
+            "SELECT id, full_name, registered_at FROM users ORDER BY id"
+        ).fetchall()
+        return [user_to_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+@app.get("/api/users/{user_id}")
+def get_user(user_id: int) -> dict[str, Any]:
+    conn = db()
+    try:
+        row = conn.execute(
+            "SELECT id, full_name, registered_at FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        return user_to_dict(row)
+    finally:
+        conn.close()
+
+
+@app.post("/api/users", status_code=201)
+def create_user(body: CreateUser) -> dict[str, Any]:
+    validate_date(body.registeredAt)
+    conn = db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO users (full_name, registered_at) VALUES (?, ?)",
+            (body.fullName.strip(), body.registeredAt),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT id, full_name, registered_at FROM users WHERE id = ?",
+            (cur.lastrowid,),
+        ).fetchone()
+        return user_to_dict(row)
+    finally:
+        conn.close()
+
+
+@app.patch("/api/users/{user_id}")
+def update_user(user_id: int, body: UpdateUser) -> dict[str, Any]:
+    if body.fullName is None and body.registeredAt is None:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    if body.registeredAt is not None:
+        validate_date(body.registeredAt)
+
+    conn = db()
+    try:
+        row = conn.execute(
+            "SELECT id, full_name, registered_at FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+
+        full_name = (
+            body.fullName.strip() if body.fullName is not None else row["full_name"]
+        )
+        registered_at = (
+            body.registeredAt
+            if body.registeredAt is not None
+            else row["registered_at"]
+        )
+        if body.fullName is not None and not full_name:
+            raise HTTPException(status_code=400, detail="fullName cannot be empty")
+
+        conn.execute(
+            "UPDATE users SET full_name = ?, registered_at = ? WHERE id = ?",
+            (full_name, registered_at, user_id),
+        )
+        conn.commit()
+        updated = conn.execute(
+            "SELECT id, full_name, registered_at FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        return user_to_dict(updated)
+    finally:
+        conn.close()
+
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int) -> dict[str, Any]:
+    conn = db()
+    try:
+        row = conn.execute(
+            "SELECT id FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        return {"deleted": True, "id": user_id}
     finally:
         conn.close()
 

@@ -1,0 +1,26 @@
+{
+  "key": "users",
+  "title": "Пользователи",
+  "fields": [
+    {
+      "key": "fullName",
+      "label": "ФИО",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "registeredAt",
+      "label": "Дата регистрации",
+      "type": "date",
+      "required": true
+    },
+    {
+      "key": "id",
+      "label": "ID",
+      "type": "integer",
+      "required": true,
+      "readOnly": true,
+      "source": "backend"
+    }
+  ]
+}

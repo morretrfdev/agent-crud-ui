@@ -13,7 +13,8 @@ from openai import OpenAI
 ROOT = Path(__file__).resolve().parent
 SKILL_ROOT = ROOT.parent
 DB_PATH = ROOT / "data" / "app.db"
-SCHEMA_PATH = ROOT / "entities" / "organizations.json"
+ENTITIES_DIR = ROOT / "entities"
+ENTITY_KEYS = ("organizations", "users")
 
 SKILL_FILES = [
     "SKILL.md",
@@ -35,14 +36,28 @@ def _db() -> sqlite3.Connection:
     return conn
 
 
-def _row(row: sqlite3.Row) -> dict[str, Any]:
+def _org_row(row: sqlite3.Row) -> dict[str, Any]:
     return {"id": row["id"], "name": row["name"], "status": row["status"]}
+
+
+def _user_row(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "fullName": row["full_name"],
+        "registeredAt": row["registered_at"],
+    }
+
+
+def _load_schema(entity: str) -> dict[str, Any]:
+    path = ENTITIES_DIR / f"{entity}.json"
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_skill_prompt() -> str:
     chunks: list[str] = [
         "Ты агент чат-админки. Следуй скиллу agent-crud-ui строго.",
-        "Единственная entity в этом демо: organizations.",
+        "Entities в этом демо: organizations (Организации), users (Пользователи).",
+        "Ключ entity в view: organizations | users.",
         "После инструментов верни ТОЛЬКО JSON объекта ответа (без markdown):",
         '{"message":"строка или пусто","view":{...},"pendingConfirm":null|объект}',
         "view.type: table|form|empty|error; view.entity; view.source:{slot,entity}; view.data.",
@@ -53,11 +68,13 @@ def load_skill_prompt() -> str:
         path = SKILL_ROOT / name
         if path.exists():
             chunks.append(f"## {name}\n{path.read_text(encoding='utf-8')}\n")
-    if SCHEMA_PATH.exists():
-        chunks.append(
-            "## entity schema organizations.json\n"
-            + SCHEMA_PATH.read_text(encoding="utf-8")
-        )
+    for key in ENTITY_KEYS:
+        path = ENTITIES_DIR / f"{key}.json"
+        if path.exists():
+            chunks.append(
+                f"## entity schema {key}.json\n"
+                + path.read_text(encoding="utf-8")
+            )
     return "\n".join(chunks)
 
 
@@ -66,8 +83,18 @@ TOOL_DEFS = [
         "type": "function",
         "function": {
             "name": "get_schema",
-            "description": "Схема полей entity organizations",
-            "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+            "description": "Схема полей entity organizations или users",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": ["organizations", "users"],
+                    }
+                },
+                "required": ["entity"],
+                "additionalProperties": False,
+            },
         },
     },
     {
@@ -146,12 +173,86 @@ TOOL_DEFS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_users",
+            "description": "Список пользователей (ФИО, дата регистрации, id)",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_user",
+            "description": "Один пользователь по id",
+            "parameters": {
+                "type": "object",
+                "properties": {"id": {"type": "integer"}},
+                "required": ["id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_user",
+            "description": "Создать пользователя. id назначит БД. registeredAt: YYYY-MM-DD",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fullName": {"type": "string"},
+                    "registeredAt": {"type": "string"},
+                },
+                "required": ["fullName", "registeredAt"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_user",
+            "description": "Обновить пользователя по id",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "fullName": {"type": "string"},
+                    "registeredAt": {"type": "string"},
+                },
+                "required": ["id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_user",
+            "description": "Удалить пользователя по id (только после confirm)",
+            "parameters": {
+                "type": "object",
+                "properties": {"id": {"type": "integer"}},
+                "required": ["id"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 
 def run_tool(name: str, args: dict[str, Any]) -> Any:
     if name == "get_schema":
-        return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        entity = args.get("entity", "organizations")
+        if entity not in ENTITY_KEYS:
+            return {"error": f"unknown_entity:{entity}"}
+        return _load_schema(entity)
 
     conn = _db()
     try:
@@ -166,14 +267,14 @@ def run_tool(name: str, args: dict[str, Any]) -> Any:
                 rows = conn.execute(
                     "SELECT id, name, status FROM organizations ORDER BY id"
                 ).fetchall()
-            return [_row(r) for r in rows]
+            return [_org_row(r) for r in rows]
 
         if name == "get_organization":
             row = conn.execute(
                 "SELECT id, name, status FROM organizations WHERE id = ?",
                 (args["id"],),
             ).fetchone()
-            return _row(row) if row else {"error": "not_found"}
+            return _org_row(row) if row else {"error": "not_found"}
 
         if name == "create_organization":
             cur = conn.execute(
@@ -185,7 +286,7 @@ def run_tool(name: str, args: dict[str, Any]) -> Any:
                 "SELECT id, name, status FROM organizations WHERE id = ?",
                 (cur.lastrowid,),
             ).fetchone()
-            return _row(row)
+            return _org_row(row)
 
         if name == "update_organization":
             row = conn.execute(
@@ -205,7 +306,7 @@ def run_tool(name: str, args: dict[str, Any]) -> Any:
                 "SELECT id, name, status FROM organizations WHERE id = ?",
                 (args["id"],),
             ).fetchone()
-            return _row(updated)
+            return _org_row(updated)
 
         if name == "delete_organization":
             row = conn.execute(
@@ -215,6 +316,66 @@ def run_tool(name: str, args: dict[str, Any]) -> Any:
             if not row:
                 return {"error": "not_found"}
             conn.execute("DELETE FROM organizations WHERE id = ?", (args["id"],))
+            conn.commit()
+            return {"deleted": True, "id": args["id"]}
+
+        if name == "list_users":
+            rows = conn.execute(
+                "SELECT id, full_name, registered_at FROM users ORDER BY id"
+            ).fetchall()
+            return [_user_row(r) for r in rows]
+
+        if name == "get_user":
+            row = conn.execute(
+                "SELECT id, full_name, registered_at FROM users WHERE id = ?",
+                (args["id"],),
+            ).fetchone()
+            return _user_row(row) if row else {"error": "not_found"}
+
+        if name == "create_user":
+            cur = conn.execute(
+                "INSERT INTO users (full_name, registered_at) VALUES (?, ?)",
+                (args["fullName"].strip(), args["registeredAt"]),
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT id, full_name, registered_at FROM users WHERE id = ?",
+                (cur.lastrowid,),
+            ).fetchone()
+            return _user_row(row)
+
+        if name == "update_user":
+            row = conn.execute(
+                "SELECT id, full_name, registered_at FROM users WHERE id = ?",
+                (args["id"],),
+            ).fetchone()
+            if not row:
+                return {"error": "not_found"}
+            full_name = (
+                args["fullName"].strip()
+                if args.get("fullName")
+                else row["full_name"]
+            )
+            registered_at = args.get("registeredAt") or row["registered_at"]
+            conn.execute(
+                "UPDATE users SET full_name = ?, registered_at = ? WHERE id = ?",
+                (full_name, registered_at, args["id"]),
+            )
+            conn.commit()
+            updated = conn.execute(
+                "SELECT id, full_name, registered_at FROM users WHERE id = ?",
+                (args["id"],),
+            ).fetchone()
+            return _user_row(updated)
+
+        if name == "delete_user":
+            row = conn.execute(
+                "SELECT id FROM users WHERE id = ?",
+                (args["id"],),
+            ).fetchone()
+            if not row:
+                return {"error": "not_found"}
+            conn.execute("DELETE FROM users WHERE id = ?", (args["id"],))
             conn.commit()
             return {"deleted": True, "id": args["id"]}
 

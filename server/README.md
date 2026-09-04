@@ -22,13 +22,18 @@ uvicorn app:app --reload --host 127.0.0.1 --port 8000
 
 | Method | Path |
 |---|---|
-| GET | `/api/health` |
-| GET | `/api/entities/organizations/schema` |
+| GET | `/api/entities` |
+| GET | `/api/entities/{key}/schema` |
 | GET | `/api/organizations` |
 | GET | `/api/organizations/{id}` |
 | POST | `/api/organizations` |
 | PATCH | `/api/organizations/{id}` |
 | DELETE | `/api/organizations/{id}` |
+| GET | `/api/users` |
+| GET | `/api/users/{id}` |
+| POST | `/api/users` |
+| PATCH | `/api/users/{id}` |
+| DELETE | `/api/users/{id}` |
 
 ### Chat agent
 
